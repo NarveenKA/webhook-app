@@ -1,41 +1,8 @@
-// /controllers/accountController.js
-
 const { v4: uuidv4 } = require('uuid');
 const crypto = require('crypto');
 const Account = require('../models/account');
 const Destination = require('../models/destination');
-
-// Helper function for consistent error responses
-const sendErrorResponse = (res, statusCode, message, details = null) => {
-  const response = {
-    success: false,
-    error: {
-      message,
-      timestamp: new Date().toISOString()
-    }
-  };
-  
-  if (details) {
-    response.error.details = details;
-  }
-  
-  return res.status(statusCode).json(response);
-};
-
-// Helper function for consistent success responses
-const sendSuccessResponse = (res, statusCode, data, message = null) => {
-  const response = {
-    success: true,
-    data,
-    timestamp: new Date().toISOString()
-  };
-  
-  if (message) {
-    response.message = message;
-  }
-  
-  return res.status(statusCode).json(response);
-};
+const { sendErrorResponse, sendSuccessResponse } = require('../utils/response');
 
 // Input validation helper
 const validateCreateInput = (req) => {
