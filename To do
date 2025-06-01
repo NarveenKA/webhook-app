@@ -1,7 +1,3 @@
 * Modularize the code
 * Add logger
-* Error handler
-* Authentication
-* REST implementation
-* .env and .gitignore
 * readme.md
