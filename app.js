@@ -1,5 +1,3 @@
-// app.js
-
 require('dotenv').config();
 const express = require('express');
 const app = express();
@@ -12,27 +10,27 @@ const nodeEnv = process.env.NODE_ENV || 'development';
 // Middlewares
 app.use(express.json());
 
-// Import Routes
-const accountRoutes = require('./routes/account');
-const destinationRoutes = require('./routes/destination');
-const dataHandlerRoutes = require('./routes/dataHandler');
+// Import routes
+const routes = require('./routes');
 
-// Use Routes
-app.use('/accounts', accountRoutes);
-app.use('/destinations', destinationRoutes);
-app.use('/server', dataHandlerRoutes);
+// Use routes
+app.use('/', routes);
+
+// Swagger setup
+const setupSwagger = require('./swagger');
+setupSwagger(app);
 
 // Basic Health Check Route
 app.get('/', (req, res) => {
-  res.json({ 
+  res.json({
     message: 'Webhook App Server is Running',
     environment: nodeEnv,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
 // Start the server
 app.listen(port, host, () => {
-  // Server started successfully
   console.log(`Server is running on http://${host}:${port} in ${nodeEnv}`);
+  console.log(`Swagger Docs available at http://${host}:${port}/api-docs`);
 });

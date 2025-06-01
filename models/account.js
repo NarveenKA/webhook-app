@@ -21,5 +21,8 @@ module.exports = {
   },
   delete(account_id) {
     return db('accounts').where({ account_id }).del();
+  },
+  findBySecretToken(app_secret_token) {
+    return db('accounts').where({ app_secret_token: app_secret_token }).first();
   }
 };

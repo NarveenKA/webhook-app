@@ -43,6 +43,12 @@ const isValidUUID = (uuid) => {
   return uuidRegex.test(uuid);
 };
 
+// Validate UUID format
+const isValidID = (id) => {
+  const positiveIntegerRegex = /^\d+$/;
+  return positiveIntegerRegex.test(id);
+};
+
 // Validate URL format
 const isValidURL = (url) => {
   try {
@@ -246,8 +252,8 @@ async create(req, res) {
       const { id } = req.params;
       
       // Validate destination ID format
-      if (!isValidUUID(id)) {
-        return sendErrorResponse(res, 400, 'Invalid destination ID format');
+      if (!isValidID(id)) {
+        return sendErrorResponse(res, 400, 'Invalid destination ID');
       }
       
       const destination = await Destination.findById(id);
@@ -276,8 +282,8 @@ async create(req, res) {
     const { id } = req.params;
     
     // Validate destination ID format (now it's a number, not UUID)
-    if (!id || isNaN(parseInt(id))) {
-      return sendErrorResponse(res, 400, 'Invalid destination ID format');
+    if (!isValidID(id)) {
+      return sendErrorResponse(res, 400, 'Invalid destination ID');
     }
     
     // Check if destination exists
@@ -359,9 +365,8 @@ async create(req, res) {
     try {
       const { id } = req.params;
       
-      // Validate destination ID format
-      if (!isValidUUID(id)) {
-        return sendErrorResponse(res, 400, 'Invalid destination ID format');
+      if (!isValidID(id)) {
+        return sendErrorResponse(res, 400, 'Invalid destination ID');
       }
       
       // Check if destination exists
@@ -384,106 +389,4 @@ async create(req, res) {
       return sendErrorResponse(res, 500, 'Internal server error while deleting destination');
     }
   },
-
-  // PATCH /destinations/:id/toggle - Toggle destination active status
-  async toggleActive(req, res) {
-    try {
-      const { id } = req.params;
-      
-      // Validate destination ID format
-      if (!isValidUUID(id)) {
-        return sendErrorResponse(res, 400, 'Invalid destination ID format');
-      }
-      
-      const existingDestination = await Destination.findById(id);
-      if (!existingDestination) {
-        return sendErrorResponse(res, 404, 'Destination not found');
-      }
-      
-      const newActiveStatus = !existingDestination.is_active;
-      const updated = await Destination.update(id, {
-        is_active: newActiveStatus,
-        updated_at: new Date().toISOString()
-      });
-      
-      if (!updated) {
-        return sendErrorResponse(res, 404, 'Destination not found');
-      }
-      
-      return sendSuccessResponse(res, 200, {
-        destination_id: id,
-        is_active: newActiveStatus,
-        updated_at: new Date().toISOString()
-      }, `Destination ${newActiveStatus ? 'activated' : 'deactivated'} successfully`);
-      
-    } catch (error) {
-      return sendErrorResponse(res, 500, 'Internal server error while toggling destination status');
-    }
-  },
-
-  // POST /destinations/:id/test - Test destination connectivity
-  async testDestination(req, res) {
-    try {
-      const { id } = req.params;
-      
-      // Validate destination ID format
-      if (!isValidUUID(id)) {
-        return sendErrorResponse(res, 400, 'Invalid destination ID format');
-      }
-      
-      const destination = await Destination.findById(id);
-      if (!destination) {
-        return sendErrorResponse(res, 404, 'Destination not found');
-      }
-      
-      const axios = require('axios');
-      const testData = req.body || { test: true, timestamp: new Date().toISOString() };
-      
-      try {
-        const headers = JSON.parse(destination.headers);
-        const method = destination.http_method.toLowerCase();
-        
-        const config = {
-          method,
-          url: destination.url,
-          headers: { ...headers, 'X-Test-Request': 'true' },
-          timeout: 10000
-        };
-        
-        if (method === 'get') {
-          config.params = testData;
-        } else {
-          config.data = testData;
-        }
-        
-        const response = await axios(config);
-        
-        return sendSuccessResponse(res, 200, {
-          destination_id: id,
-          test_successful: true,
-          response_status: response.status,
-          response_time: new Date().toISOString(),
-          url: destination.url,
-          method: destination.http_method
-        }, 'Destination test successful');
-        
-      } catch (testError) {
-        return sendSuccessResponse(res, 200, {
-          destination_id: id,
-          test_successful: false,
-          error: testError.response ? {
-            status: testError.response.status,
-            statusText: testError.response.statusText
-          } : {
-            message: testError.message
-          },
-          url: destination.url,
-          method: destination.http_method
-        }, 'Destination test failed');
-      }
-      
-    } catch (error) {
-      return sendErrorResponse(res, 500, 'Internal server error while testing destination');
-    }
-  }
 };
