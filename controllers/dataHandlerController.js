@@ -1,64 +1,161 @@
+const { v4: uuidv4 } = require('uuid');
 const Account = require('../models/account');
 const Destination = require('../models/destination');
-const webhookQueue = require('../utils/queue');
-const { sendErrorResponse, sendSuccessResponse } = require('../utils/response');
+const Log = require('../models/log');
+const { addToQueue } = require('../utils/queue');
 
-// Incoming Data Handler
-const incomingData = async (req, res) => {
+// In-memory storage for temporary data (in production, use Redis or similar)
+const tempDataStore = new Map();
+
+/**
+ * Receive initial data and generate event ID
+ */
+const receiveData = async (req, res) => {
   try {
-    // Validate request method
-    if (req.method !== 'POST') {
-      return sendErrorResponse(res, 405, 'Method not allowed. Only POST requests are accepted.');
+        const clxToken = req.headers['cl-x-token'];
+        
+        if (!clxToken) {
+            return res.status(401).json({
+                success: false,
+                error: 'Missing authentication token'
+            });
+        }
+
+        // Validate that the request body is JSON
+        if (!req.is('application/json')) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid content type. Expected application/json'
+            });
     }
 
-    // Validate headers
-    const secretToken = req.header('CL-X-TOKEN');
-    const eventId = req.header('CL-X-EVENT-ID');
+        // Generate a unique event ID
+        const eventId = uuidv4();
 
-    if (!secretToken) {
-      return sendErrorResponse(res, 401, 'Unauthorized - Missing secret token');
+        // Store the received data temporarily
+        tempDataStore.set(eventId, {
+            data: req.body,
+            token: clxToken,
+            timestamp: new Date()
+        });
+
+        // Return the event ID to the client
+        return res.status(200).json({
+            success: true,
+            data: {
+                message: 'Data received successfully',
+                event_id: eventId
+            }
+        });
+    } catch (error) {
+        console.error('Error in receiveData:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal server error while processing data'
+        });
+    }
+};
+
+/**
+ * Process data with event ID and queue for delivery
+ */
+const processData = async (req, res) => {
+    try {
+        const clxToken = req.headers['cl-x-token'];
+        const eventId = req.headers['cl-x-event-id'];
+
+        if (!clxToken || !eventId) {
+            return res.status(401).json({
+                success: false,
+                error: 'Missing required headers'
+            });
+        }
+
+        // Get the stored data
+        const storedData = tempDataStore.get(eventId);
+        if (!storedData) {
+            return res.status(404).json({
+                success: false,
+                error: 'Event not found'
+            });
+        }
+
+        // Verify the token matches
+        if (storedData.token !== clxToken) {
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid token for this event'
+            });
     }
 
-    if (!eventId) {
-      return sendErrorResponse(res, 400, 'Bad Request - Missing event ID');
-    }
-
-    const requestData = req.body;
-
-    // Validate content type and data
-    if (!requestData || typeof requestData !== 'object') {
-      return sendErrorResponse(res, 400, 'Invalid request body. Expected JSON data.');
-    }
-
-    // Find account by secret token
-    const account = await Account.findBySecretToken(secretToken);
+        // Find the account associated with the token
+        const account = await Account.findBySecretToken(clxToken);
     if (!account) {
-      return sendErrorResponse(res, 401, 'Unauthorized - Invalid secret token');
+            return res.status(401).json({
+                success: false,
+                error: 'Invalid account token'
+            });
     }
 
-    // Fetch destinations for this account
+        // Find destinations for this account
     const destinations = await Destination.findByAccountId(account.account_id);
     if (!destinations || destinations.length === 0) {
-      return sendErrorResponse(res, 404, 'No destinations found for this account');
+            return res.status(404).json({
+                success: false,
+                error: 'No destinations found for this account'
+            });
     }
 
-    // Add to processing queue
-    await webhookQueue.addToQueue({
-      eventId,
-      accountId: account.account_id,
-      payload: requestData,
-      destinations
-    });
+        // Create log entries and queue webhook deliveries for each destination
+        const logPromises = destinations.map(async (destination) => {
+            // Create unique event ID for each destination
+            const destinationEventId = `${eventId}_${destination.destination_id}`;
+            
+            // Create log entry
+            const [logId] = await Log.create({
+                event_id: destinationEventId,
+                account_id: account.account_id,
+                destination_id: destination.destination_id,
+                received_data: storedData.data,
+                received_timestamp: storedData.timestamp,
+                status: Log.STATUS.PENDING
+            });
 
-    return sendSuccessResponse(res, 202, {
-      message: 'Data accepted for processing',
-      event_id: eventId
-    });
+            // Queue webhook delivery
+            await addToQueue(
+                destinationEventId, // Use event_id instead of logId
+                destination.url,
+                destination.headers,
+                storedData.data
+            );
 
+            return destinationEventId;
+        });
+
+        const eventIds = await Promise.all(logPromises);
+
+        // Clean up the temporary storage
+        tempDataStore.delete(eventId);
+
+        return res.status(202).json({
+            success: true,
+            data: {
+                message: 'Data queued for processing',
+                event_ids: eventIds,
+                account_id: account.account_id,
+                destination_count: destinations.length
+            }
+    });
   } catch (error) {
-    console.error('Error in incomingData:', error);
-    return sendErrorResponse(res, 500, 'Internal server error while processing incoming data');
+        console.error('Error in processData:', error);
+        return res.status(500).json({
+            success: false,
+            error: 'Internal server error while processing data'
+        });
   }
 };
 
-module.exports = { incomingData };
+module.exports = {
+    receiveData,
+    processData
+};

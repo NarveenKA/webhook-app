@@ -198,7 +198,7 @@ module.exports = {
       };
 
       try {
-        await Destination.create(destination);
+      await Destination.create(destination);
       } catch (error) {
         if (error.message === "Duplicate destination") {
           return sendErrorResponse(

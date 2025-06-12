@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 // Status constants
 const STATUS = {
   PENDING: 'pending',
+  PROCESSING: 'processing',
   SUCCESS: 'success',
   FAILED: 'failed'
 };
@@ -14,14 +15,21 @@ module.exports = {
   create(log) {
     const now = new Date();
     const event = {
-      event_id: uuidv4(),
-      received_timestamp: now,
+      event_id: log.event_id || uuidv4(),
+      received_timestamp: log.received_timestamp || now,
       created_at: now,
       updated_at: now,
-      status: STATUS.PENDING,
+      status: log.status || STATUS.PENDING,
       ...log
     };
-    return db("logs").insert(event).returning('event_id');
+
+    // Remove any duplicate fields that might have been added by the spread
+    delete event.created_at;
+    delete event.updated_at;
+    
+    return db("logs")
+      .insert(event)
+      .returning('*');
   },
 
   async count(filters = {}) {
@@ -78,7 +86,9 @@ module.exports = {
 
     // Add pagination
     const offset = (page - 1) * limit;
-    return query.limit(limit).offset(offset);
+    return query
+      .limit(parseInt(limit))
+      .offset(parseInt(offset));
   },
 
   findById(event_id) {
@@ -90,7 +100,7 @@ module.exports = {
       )
       .leftJoin("accounts", "logs.account_id", "accounts.account_id")
       .leftJoin("destinations", "logs.destination_id", "destinations.destination_id")
-      .where({ event_id })
+      .where("logs.event_id", event_id)
       .first();
   },
 
@@ -141,20 +151,36 @@ module.exports = {
   },
 
   async updateStatus(event_id, status, processed_timestamp = null) {
-    const updates = {
-      status,
-      updated_at: db.fn.now()
-    };
-    
-    if (processed_timestamp) {
-      updates.processed_timestamp = processed_timestamp;
-    } else if (status === STATUS.SUCCESS || status === STATUS.FAILED) {
-      updates.processed_timestamp = db.fn.now();
-    }
+    try {
+      const updates = {
+        status,
+        updated_at: db.fn.now()
+      };
+      
+      if (processed_timestamp) {
+        updates.processed_timestamp = processed_timestamp;
+      } else if (status === STATUS.SUCCESS || status === STATUS.FAILED) {
+        updates.processed_timestamp = db.fn.now();
+      }
 
-    return db("logs")
-      .where({ event_id })
-      .update(updates);
+      const result = await db("logs")
+        .where("event_id", event_id)
+        .update(updates);
+
+      if (result === 0) {
+        throw new Error(`No log found with event_id: ${event_id}`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Error updating log status:', {
+        event_id,
+        status,
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
   },
 
   getStats(account_id = null, destination_id = null, timeframe = '24h') {

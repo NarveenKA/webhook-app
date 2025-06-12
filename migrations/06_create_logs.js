@@ -1,8 +1,8 @@
 exports.up = function (knex) {
   return knex.schema.createTable("logs", (table) => {
-    table.uuid("event_id").primary();
-    table.uuid("account_id").notNullable();
-    table.uuid("destination_id").notNullable();
+    table.string("event_id", 36).primary();  // UUID stored as string
+    table.string("account_id", 36).notNullable();  // UUID stored as string
+    table.string("destination_id", 36).notNullable();  // UUID stored as string
     table.timestamp("received_timestamp").notNullable();
     table.timestamp("processed_timestamp");  // Nullable since it might be processed later
     table.json("received_data").notNullable();

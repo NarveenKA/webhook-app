@@ -4,15 +4,14 @@ const { sendErrorResponse, sendSuccessResponse } = require('../utils/response');
 const getLogs = async (req, res) => {
   try {
     const { account_id, page = 1, limit = 10 } = req.query;
-    const offset = (page - 1) * limit;
 
-    const query = {};
+    const filters = {};
     if (account_id) {
-      query.account_id = account_id;
+      filters.account_id = account_id;
     }
 
-    const logs = await Log.findAll(query, limit, offset);
-    const total = await Log.count(query);
+    const logs = await Log.findAll(filters, parseInt(page), parseInt(limit));
+    const total = await Log.count(filters);
 
     return sendSuccessResponse(res, 200, {
       logs,

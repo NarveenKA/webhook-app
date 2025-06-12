@@ -20,7 +20,7 @@ const getUsers = async (req, res) => {
   } catch (error) {
     console.error('Error in getUsers:', error);
     return sendErrorResponse(res, 500, 'Error retrieving users');
-  }
+      }
 };
 
 const getUserById = async (req, res) => {
@@ -30,7 +30,7 @@ const getUserById = async (req, res) => {
     const user = await User.findById(user_id);
     if (!user) {
       return sendErrorResponse(res, 404, 'User not found');
-    }
+      }
 
     // Get user's role
     const role = await Role.findById(user.role_id);
@@ -41,21 +41,21 @@ const getUserById = async (req, res) => {
         role: role.role_name
       }
     });
-  } catch (error) {
+    } catch (error) {
     console.error('Error in getUserById:', error);
     return sendErrorResponse(res, 500, 'Error retrieving user');
-  }
+    }
 };
 
 const updateUser = async (req, res) => {
-  try {
+    try {
     const { user_id } = req.params;
     const updates = { ...req.body };
 
     const user = await User.findById(user_id);
-    if (!user) {
+      if (!user) {
       return sendErrorResponse(res, 404, 'User not found');
-    }
+      }
 
     // Check if email is being updated and is not already taken
     if (updates.email && updates.email !== user.email) {
@@ -75,7 +75,7 @@ const updateUser = async (req, res) => {
 
     if (Object.keys(updates).length === 0) {
       return sendErrorResponse(res, 400, 'No valid fields provided for update');
-    }
+      }
 
     await User.update(user_id, updates);
     const updatedUser = await User.findById(user_id);
@@ -88,30 +88,30 @@ const updateUser = async (req, res) => {
         role: role.role_name
       }
     });
-  } catch (error) {
+    } catch (error) {
     console.error('Error in updateUser:', error);
     return sendErrorResponse(res, 500, 'Error updating user');
-  }
+    }
 };
 
 const deleteUser = async (req, res) => {
-  try {
+    try {
     const { user_id } = req.params;
 
     const user = await User.findById(user_id);
     if (!user) {
       return sendErrorResponse(res, 404, 'User not found');
-    }
+      }
 
     await User.delete(user_id);
 
     return sendSuccessResponse(res, 200, {
       message: 'User deleted successfully'
     });
-  } catch (error) {
+    } catch (error) {
     console.error('Error in deleteUser:', error);
     return sendErrorResponse(res, 500, 'Error deleting user');
-  }
+    }
 };
 
 module.exports = {
