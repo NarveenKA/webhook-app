@@ -4,6 +4,7 @@ const { verifyToken, hasRole } = require('../middleware/auth');
 const validateRequest = require('../middleware/validate');
 const { createAccountSchema, updateAccountSchema } = require('../validations/account.validation');
 const accountController = require('../controllers/accountController');
+const { cacheMiddleware, clearCache } = require('../middleware/cache');
 
 /**
  * @swagger
@@ -102,7 +103,7 @@ const accountController = require('../controllers/accountController');
  *       500:
  *         description: Server error
  */
-router.get('/', verifyToken, accountController.getAll);
+router.get('/', verifyToken, cacheMiddleware('ACCOUNT'), accountController.getAll);
 
 /**
  * @swagger
@@ -177,7 +178,7 @@ router.get('/:account_id', verifyToken, accountController.getById);
  *       500:
  *         description: Server error
  */
-router.post('/', verifyToken, hasRole(['Admin']), validateRequest(createAccountSchema), accountController.create);
+router.post('/', verifyToken, hasRole(['Admin']), validateRequest(createAccountSchema), clearCache('ACCOUNT'), accountController.create);
 
 /**
  * @swagger
@@ -226,7 +227,7 @@ router.post('/', verifyToken, hasRole(['Admin']), validateRequest(createAccountS
  *       500:
  *         description: Server error
  */
-router.put('/:account_id', verifyToken, validateRequest(updateAccountSchema), accountController.update);
+router.put('/:account_id', verifyToken, validateRequest(updateAccountSchema), clearCache('ACCOUNT'), accountController.update);
 
 /**
  * @swagger
@@ -256,6 +257,6 @@ router.put('/:account_id', verifyToken, validateRequest(updateAccountSchema), ac
  *       500:
  *         description: Server error
  */
-router.delete('/:account_id', verifyToken, hasRole(['Admin']), accountController.delete);
+router.delete('/:account_id', verifyToken, hasRole(['Admin']), clearCache('ACCOUNT'), accountController.delete);
 
 module.exports = router;
