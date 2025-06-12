@@ -1,37 +1,37 @@
 const express = require('express');
 const router = express.Router();
+const { dataRouteLimiter } = require('../middleware/rateLimiter');
 const dataHandlerController = require('../controllers/dataHandlerController');
 
 /**
  * @swagger
  * tags:
- *   name: IncomingData
- *   description: API endpoints for handling incoming webhook data
+ *   name: Data Handler
+ *   description: Data receiving and processing endpoints
  */
 
 /**
  * @swagger
  * /server/data:
  *   post:
- *     summary: Initial endpoint to receive JSON data and generate event ID
- *     tags: [IncomingData]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             description: Any valid JSON object
+ *     summary: Receive initial data and generate event ID
+ *     tags: [Data Handler]
  *     parameters:
  *       - in: header
  *         name: CL-X-TOKEN
  *         required: true
  *         schema:
  *           type: string
- *         description: Secret token to authenticate the account
+ *         description: Authentication token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
  *     responses:
  *       200:
- *         description: Data received and event ID generated
+ *         description: Data received successfully
  *         content:
  *           application/json:
  *             schema:
@@ -39,53 +39,43 @@ const dataHandlerController = require('../controllers/dataHandlerController');
  *               properties:
  *                 success:
  *                   type: boolean
- *                   example: true
  *                 data:
  *                   type: object
  *                   properties:
  *                     message:
  *                       type: string
- *                       example: Data received successfully
  *                     event_id:
  *                       type: string
- *                       example: evt_123456789
- *       400:
- *         description: Bad Request - Invalid data format or missing JSON body
+ *                       format: uuid
  *       401:
- *         description: Unauthorized - Missing or invalid secret token
- *       405:
- *         description: Method not allowed - Only POST requests are accepted
+ *         description: Missing authentication token
+ *       429:
+ *         description: Too many requests from this IP
  *       500:
- *         description: Internal server error while processing data
+ *         description: Server error
  */
-router.post('/data', dataHandlerController.receiveData);
+router.post('/data', dataRouteLimiter, dataHandlerController.receiveData);
 
 /**
  * @swagger
  * /server/process:
  *   post:
- *     summary: Process previously received data and queue it for delivery to destinations
- *     tags: [IncomingData]
- *     requestBody:
- *       required: false
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             description: Optional additional processing parameters
+ *     summary: Process data with event ID
+ *     tags: [Data Handler]
  *     parameters:
  *       - in: header
  *         name: CL-X-TOKEN
  *         required: true
  *         schema:
  *           type: string
- *         description: Secret token to authenticate the account
+ *         description: Authentication token
  *       - in: header
  *         name: CL-X-EVENT-ID
  *         required: true
  *         schema:
  *           type: string
- *         description: Event ID received from the initial data submission
+ *           format: uuid
+ *         description: Event ID from the initial data submission
  *     responses:
  *       202:
  *         description: Data queued for processing
@@ -96,29 +86,27 @@ router.post('/data', dataHandlerController.receiveData);
  *               properties:
  *                 success:
  *                   type: boolean
- *                   example: true
  *                 data:
  *                   type: object
  *                   properties:
  *                     message:
  *                       type: string
- *                       example: Data queued for processing
- *                     event_id:
- *                       type: string
- *                       example: evt_123456789
+ *                     event_ids:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                         format: uuid
  *                     account_id:
  *                       type: string
- *                       example: acc_123456789
- *       400:
- *         description: Bad Request - Missing event ID
+ *                       format: uuid
+ *                     destination_count:
+ *                       type: integer
  *       401:
- *         description: Unauthorized - Missing or invalid secret token
+ *         description: Missing authentication token or event ID
  *       404:
- *         description: No destinations found for this account or event not found
- *       405:
- *         description: Method not allowed - Only POST requests are accepted
+ *         description: Event data not found
  *       500:
- *         description: Internal server error while processing data
+ *         description: Server error
  */
 router.post('/process', dataHandlerController.processData);
 

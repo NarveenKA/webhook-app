@@ -50,7 +50,7 @@ npm install
 
 3. Initialize the database:
 ```bash
-node scripts/init_db.js
+npm run init-db.js
 ```
 
 4. Start the application:
@@ -186,9 +186,11 @@ DELETE /api/destinations/:destinationId
 
 ### Data Ingestion
 
-#### Receive and Forward Data
+The data ingestion follows a two-step process to ensure reliable delivery:
+
+#### Step 1: Submit Data
 ```http
-POST /server/incoming_data
+POST /server/data
 Content-Type: application/json
 CL-X-TOKEN: <app_secret_token>
 
@@ -200,15 +202,85 @@ CL-X-TOKEN: <app_secret_token>
     "email": "john@example.com"
   }
 }
+
+Response:
+{
+  "success": true,
+  "data": {
+    "message": "Data received successfully",
+    "event_id": "550e8400-e29b-41d4-a716-446655440000"
+  }
+}
+```
+
+#### Step 2: Process Data
+```http
+POST /server/process
+Content-Type: application/json
+CL-X-TOKEN: <app_secret_token>
+CL-X-EVENT-ID: <event_id_from_step_1>
+
+Response:
+{
+  "success": true,
+  "data": {
+    "message": "Data queued for processing",
+    "event_ids": [
+      "550e8400-e29b-41d4-a716-446655440000_dest1",
+      "550e8400-e29b-41d4-a716-446655440000_dest2"
+    ],
+    "account_id": "acc_123456",
+    "destination_count": 2
+  }
+}
+```
+
+### Rate Limiting
+
+The application implements rate limiting to ensure fair usage and system stability:
+
+- **Data Submission Endpoint** (`/server/data`):
+  - 5 requests per second per account
+  - Rate limits are tracked by `CL-X-TOKEN`
+  - Returns standard rate limit headers:
+    - `RateLimit-Limit`: Maximum requests per window
+    - `RateLimit-Remaining`: Remaining requests in current window
+    - `RateLimit-Reset`: Timestamp when the limit resets
+
+#### Rate Limit Response
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json
+
+{
+  "success": false,
+  "error": "Rate limit exceeded. Maximum 5 requests per second per account allowed.",
+  "reset_in_ms": 850,
+  "retry_after": 1
+}
 ```
 
 ## Data Flow
 
-1. **Data Reception**: POST request received at `/server/incoming_data`
-2. **Authentication**: Validate `CL-X-TOKEN` header against stored app secret tokens
-3. **Account Identification**: Match secret token to corresponding account
-4. **Destination Lookup**: Retrieve all destinations configured for the account
-5. **Data Distribution**: Forward data to each destination using configured HTTP method and headers
+1. **Initial Data Reception**: 
+   - Client submits data to `/server/data`
+   - Rate limit check (5 requests/second/account)
+   - Returns unique `event_id`
+
+2. **Data Processing Initiation**:
+   - Client submits `event_id` to `/server/process`
+   - System validates token and event existence
+   - Generates unique IDs for each destination
+
+3. **Background Processing**:
+   - Data is queued for asynchronous processing
+   - Each destination gets its own processing job
+   - Status tracking via event IDs
+
+4. **Delivery and Logging**:
+   - System attempts delivery to each destination
+   - Logs track status: pending → processing → success/failed
+   - Comprehensive error logging and retry mechanism
 
 ### HTTP Method Handling
 
@@ -222,6 +294,7 @@ The application returns appropriate HTTP status codes and JSON error responses:
 - `400 Bad Request`: Invalid data format or missing required fields
 - `401 Unauthorized`: Missing or invalid authentication token
 - `404 Not Found`: Resource not found
+- `429 Too Many Requests`: Rate limit exceeded
 - `500 Internal Server Error`: Server-side errors
 
 ### Common Error Responses
@@ -235,8 +308,17 @@ The application returns appropriate HTTP status codes and JSON error responses:
 
 ```json
 {
-  "error": "Un Authenticate",
+  "error": "Unauthorized",
   "message": "Missing or invalid CL-X-TOKEN header"
+}
+```
+
+```json
+{
+  "error": "Rate Limited",
+  "message": "Rate limit exceeded. Maximum 5 requests per second per account allowed.",
+  "reset_in_ms": 850,
+  "retry_after": 1
 }
 ```
 
@@ -250,13 +332,16 @@ Create a `.env` file in the root directory:
 ```env
 PORT=3000
 NODE_ENV=development
+REDIS_URL=redis://localhost:6379
+REDIS_PASSWORD=
+REDIS_USERNAME=
 ```
 
 ### Database Management
 
 Initialize database:
 ```bash
-node scripts/init_db.js
+npm run init-db.js
 ```
 
 Reset database:
