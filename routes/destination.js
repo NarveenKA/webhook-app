@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, hasRole } = require('../middleware/auth');
+const validateRequest = require('../middleware/validate');
+const { createDestinationSchema, updateDestinationSchema } = require('../validations/destination.validation');
 const destinationController = require('../controllers/destinationController');
 
 /**
@@ -26,6 +28,7 @@ const destinationController = require('../controllers/destinationController');
  *         url:
  *           type: string
  *           format: uri
+ *           pattern: ^https?://
  *           description: The webhook destination URL (must start with http:// or https://)
  *         http_method:
  *           type: string
@@ -36,6 +39,7 @@ const destinationController = require('../controllers/destinationController');
  *           description: HTTP headers to include in the webhook request
  *           additionalProperties:
  *             type: string
+ *             minProperties: 1
  *         created_at:
  *           type: string
  *           format: date-time
@@ -184,7 +188,7 @@ router.get('/:destination_id', verifyToken, destinationController.getById);
  *       500:
  *         description: Server error
  */
-router.post('/', verifyToken, hasRole(['Admin']), destinationController.create);
+router.post('/', verifyToken, hasRole(['Admin']), validateRequest(createDestinationSchema), destinationController.create);
 
 /**
  * @swagger
@@ -240,7 +244,7 @@ router.post('/', verifyToken, hasRole(['Admin']), destinationController.create);
  *       500:
  *         description: Server error
  */
-router.put('/:destination_id', verifyToken, destinationController.update);
+router.put('/:destination_id', verifyToken, validateRequest(updateDestinationSchema), destinationController.update);
 
 /**
  * @swagger

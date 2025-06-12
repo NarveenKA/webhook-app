@@ -12,7 +12,7 @@ module.exports = {
       .select(
         "account_members.*",
         "users.email as user_email",
-        "accounts.name as account_name"
+        "accounts.account_name as account_name"
       )
       .leftJoin("users", "account_members.user_id", "users.user_id")
       .leftJoin("accounts", "account_members.account_id", "accounts.account_id");
@@ -39,7 +39,7 @@ module.exports = {
       .where({ user_id })
       .select(
         "account_members.*",
-        "accounts.name as account_name"
+        "accounts.account_name as account_name"
       )
       .leftJoin("accounts", "account_members.account_id", "accounts.account_id");
   },

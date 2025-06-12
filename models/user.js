@@ -10,15 +10,15 @@ module.exports = {
         throw new Error('Email already exists');
       }
 
-      // Hash the password before storing
-      const hashedPassword = await bcrypt.hash(user.password, 10);
-      const userData = {
-        ...user,
-        password: hashedPassword,
+    // Hash the password before storing
+    const hashedPassword = await bcrypt.hash(user.password, 10);
+    const userData = {
+      ...user,
+      password: hashedPassword,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      };
-      return db("users").insert(userData);
+    };
+    return db("users").insert(userData);
     } catch (error) {
       if (error.message === 'Email already exists') {
         throw error;
@@ -49,15 +49,15 @@ module.exports = {
         }
       }
 
-      // If password is being updated, hash it
-      if (updates.password) {
-        updates.password = await bcrypt.hash(updates.password, 10);
-      }
+    // If password is being updated, hash it
+    if (updates.password) {
+      updates.password = await bcrypt.hash(updates.password, 10);
+    }
 
       // Add updated timestamp
       updates.updated_at = new Date().toISOString();
 
-      return db("users").where({ user_id }).update(updates);
+    return db("users").where({ user_id }).update(updates);
     } catch (error) {
       if (error.message === 'Email already exists') {
         throw error;

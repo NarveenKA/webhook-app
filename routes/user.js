@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const { verifyToken, hasRole } = require('../middleware/auth');
+const validateRequest = require('../middleware/validate');
+const { updateUserSchema } = require('../validations/user.validation');
 const userController = require("../controllers/userController");
 
 /**
@@ -29,6 +31,7 @@ const userController = require("../controllers/userController");
  *           format: date-time
  *     UserUpdate:
  *       type: object
+ *       minProperties: 1
  *       properties:
  *         email:
  *           type: string
@@ -39,13 +42,14 @@ const userController = require("../controllers/userController");
  *           type: string
  *           format: password
  *           minLength: 8
- *           description: New password (must be at least 8 characters)
- *           example: newpassword123
+ *           pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
+ *           description: Password must contain at least one uppercase letter, one lowercase letter, one number and one special character
+ *           example: "NewPassword123@"
  *         role_id:
- *           type: integer
- *           description: New role ID (1 for Admin, 2 for Normal User)
- *           enum: [1, 2]
- *           example: 2
+ *           type: string
+ *           format: uuid
+ *           description: New role ID
+ *           example: "550e8400-e29b-41d4-a716-446655440000"
  */
 
 /**
@@ -214,7 +218,7 @@ router.get('/:user_id', verifyToken, hasRole(['Admin']), userController.getUserB
  *       500:
  *         description: Server error
  */
-router.put('/:user_id', verifyToken, hasRole(['Admin']), userController.updateUser);
+router.put('/:user_id', verifyToken, hasRole(['Admin']), validateRequest(updateUserSchema), userController.updateUser);
 
 /**
  * @swagger

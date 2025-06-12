@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, hasRole } = require('../middleware/auth');
+const validateRequest = require('../middleware/validate');
+const { registerSchema, loginSchema, inviteSchema } = require('../validations/auth.validation');
 const authController = require('../controllers/authController');
 
 /**
@@ -22,8 +24,9 @@ const authController = require('../controllers/authController');
  *           type: string
  *           format: password
  *           minLength: 8
- *           description: User's password (minimum 8 characters)
- *           example: "password123"
+ *           pattern: /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/
+ *           description: Password must contain at least one uppercase letter, one lowercase letter, one number and one special character
+ *           example: "Password123@"
  *     RegisterResponse:
  *       type: object
  *       properties:
@@ -56,7 +59,7 @@ const authController = require('../controllers/authController');
  *           type: string
  *           format: password
  *           description: User's password
- *           example: "password123"
+ *           example: "Password123@"
  *     LoginResponse:
  *       type: object
  *       properties:
@@ -157,7 +160,7 @@ const authController = require('../controllers/authController');
  *       500:
  *         description: Server error
  */
-router.post('/register', authController.register);
+router.post('/register', validateRequest(registerSchema), authController.register);
 
 /**
  * @swagger
@@ -203,7 +206,7 @@ router.post('/register', authController.register);
  *       500:
  *         description: Server error
  */
-router.post('/login', authController.login);
+router.post('/login', validateRequest(loginSchema), authController.login);
 
 /**
  * @swagger
@@ -254,6 +257,6 @@ router.post('/login', authController.login);
  *       500:
  *         description: Server error
  */
-router.post('/invite', verifyToken, hasRole(['Admin']), authController.inviteUser);
+router.post('/invite', verifyToken, hasRole(['Admin']), validateRequest(inviteSchema), authController.inviteUser);
 
 module.exports = router; 

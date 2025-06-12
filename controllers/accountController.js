@@ -4,41 +4,10 @@ const Account = require("../models/account");
 const Destination = require("../models/destination");
 const { sendErrorResponse, sendSuccessResponse } = require("../utils/response");
 
-// Input validation helper
-const validateCreateInput = (req) => {
-  const { account_name, website } = req.body;
-  const errors = [];
-
-  if (!account_name) {
-    errors.push("Account name is required");
-  } else if (account_name.trim().length < 2) {
-    errors.push("Account name must be at least 2 characters long");
-  }
-
-  if (website && !/^https?:\/\/.+/.test(website)) {
-    errors.push(
-      "Website must be a valid URL starting with http:// or https://"
-    );
-  }
-
-  return errors;
-};
-
 module.exports = {
   // POST /accounts - Create new account
   async create(req, res) {
     try {
-      // Input validation
-      const validationErrors = validateCreateInput(req);
-      if (validationErrors.length > 0) {
-        return sendErrorResponse(
-          res,
-          400,
-          "Validation failed",
-          validationErrors
-        );
-      }
-
       const { account_name, website } = req.body;
 
       // Create new account
@@ -159,30 +128,12 @@ module.exports = {
       // Validate update data
       const allowedFields = ["account_name", "website"];
       const updateData = {};
-      const errors = [];
 
       Object.keys(req.body).forEach((key) => {
         if (allowedFields.includes(key)) {
           updateData[key] = req.body[key];
         }
       });
-
-      if (
-        updateData.account_name &&
-        updateData.account_name.trim().length < 2
-      ) {
-        errors.push("Account name must be at least 2 characters long");
-      }
-
-      if (updateData.website && !/^https?:\/\/.+/.test(updateData.website)) {
-        errors.push(
-          "Website must be a valid URL starting with http:// or https://"
-        );
-      }
-
-      if (errors.length > 0) {
-        return sendErrorResponse(res, 400, "Validation failed", errors);
-      }
 
       if (Object.keys(updateData).length === 0) {
         return sendErrorResponse(

@@ -3,40 +3,6 @@ const User = require("../models/user");
 const Role = require("../models/role");
 const { sendErrorResponse, sendSuccessResponse } = require("../utils/response");
 
-// Input validation helper
-const validateCreateInput = (req) => {
-  const { email, password } = req.body;
-  const errors = [];
-
-  if (!email) {
-    errors.push("Email is required");
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.push("Valid email format is required");
-  }
-
-  if (!password) {
-    errors.push("Password is required");
-  } else if (password.length < 8) {
-    errors.push("Password must be at least 8 characters long");
-  }
-
-  return errors;
-};
-
-const validateUpdateInput = (updates) => {
-  const errors = [];
-
-  if (updates.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(updates.email)) {
-    errors.push("Valid email format is required");
-  }
-
-  if (updates.password && updates.password.length < 8) {
-    errors.push("Password must be at least 8 characters long");
-  }
-
-  return errors;
-};
-
 const getUsers = async (req, res) => {
   try {
     const users = await User.findAll();
@@ -85,12 +51,6 @@ const updateUser = async (req, res) => {
   try {
     const { user_id } = req.params;
     const updates = { ...req.body };
-
-    // Validate input
-    const validationErrors = validateUpdateInput(updates);
-    if (validationErrors.length > 0) {
-      return sendErrorResponse(res, 400, 'Validation failed', validationErrors);
-    }
 
     const user = await User.findById(user_id);
     if (!user) {

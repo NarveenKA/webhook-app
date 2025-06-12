@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken } = require('../middleware/auth');
+const validateQuery = require('../middleware/validateQuery');
+const { getLogsQuerySchema } = require('../validations/log.validation');
 const logController = require('../controllers/logController');
 
 /**
@@ -23,6 +25,7 @@ const logController = require('../controllers/logController');
  *         name: account_id
  *         schema:
  *           type: string
+ *           format: uuid
  *         description: Filter logs by account ID
  *       - in: query
  *         name: page
@@ -47,7 +50,7 @@ const logController = require('../controllers/logController');
  *       500:
  *         description: Server error
  */
-router.get('/', verifyToken, logController.getLogs);
+router.get('/', verifyToken, validateQuery(getLogsQuerySchema), logController.getLogs);
 
 /**
  * @swagger

@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, hasRole } = require('../middleware/auth');
+const validateRequest = require('../middleware/validate');
+const { createAccountSchema, updateAccountSchema } = require('../validations/account.validation');
 const accountController = require('../controllers/accountController');
 
 /**
@@ -18,11 +20,14 @@ const accountController = require('../controllers/accountController');
  *           description: The auto-generated account ID
  *         account_name:
  *           type: string
+ *           minLength: 2
  *           description: The name of the account
  *         website:
  *           type: string
  *           format: uri
- *           description: The website URL (optional)
+ *           pattern: ^https?://
+ *           description: The website URL (must start with http:// or https://)
+ *           nullable: true
  *         created_at:
  *           type: string
  *           format: date-time
@@ -172,7 +177,7 @@ router.get('/:account_id', verifyToken, accountController.getById);
  *       500:
  *         description: Server error
  */
-router.post('/', verifyToken, hasRole(['Admin']), accountController.create);
+router.post('/', verifyToken, hasRole(['Admin']), validateRequest(createAccountSchema), accountController.create);
 
 /**
  * @swagger
@@ -221,7 +226,7 @@ router.post('/', verifyToken, hasRole(['Admin']), accountController.create);
  *       500:
  *         description: Server error
  */
-router.put('/:account_id', verifyToken, accountController.update);
+router.put('/:account_id', verifyToken, validateRequest(updateAccountSchema), accountController.update);
 
 /**
  * @swagger

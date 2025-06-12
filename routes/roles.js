@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, isAdmin } = require('../middleware/auth');
+const validateRequest = require('../middleware/validate');
+const { assignRoleSchema } = require('../validations/user.validation');
 const roleController = require('../controllers/roleController');
 
 /**
@@ -31,9 +33,11 @@ const roleController = require('../controllers/roleController');
  *               user_id:
  *                 type: string
  *                 format: uuid
+ *                 description: User ID to assign role to
  *               role_name:
  *                 type: string
- *                 enum: [Admin, Normal User]
+ *                 enum: [Admin, User]
+ *                 description: Role name to assign
  *     responses:
  *       200:
  *         description: Role assigned successfully
@@ -48,6 +52,6 @@ const roleController = require('../controllers/roleController');
  *       500:
  *         description: Server error
  */
-router.post('/assign', verifyToken, isAdmin, roleController.assignRole);
+router.post('/assign', verifyToken, isAdmin, validateRequest(assignRoleSchema), roleController.assignRole);
 
 module.exports = router; 

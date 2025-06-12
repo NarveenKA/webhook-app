@@ -13,22 +13,6 @@ const register = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Validate input
-    if (!email || !password) {
-      return sendErrorResponse(res, 400, 'Email and password are required');
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return sendErrorResponse(res, 400, 'Invalid email format');
-    }
-
-    // Validate password strength
-    if (password.length < 8) {
-      return sendErrorResponse(res, 400, 'Password must be at least 8 characters long');
-    }
-
     // Get Admin role
     const defaultRole = await Role.findByName('Admin');
     if (!defaultRole) {
@@ -70,10 +54,6 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    if (!email || !password) {
-      return sendErrorResponse(res, 400, 'Email and password are required');
-    }
-
     // Find user
     const user = await User.findByEmail(email);
     if (!user) {
@@ -114,16 +94,6 @@ const inviteUser = async (req, res) => {
   try {
     const { email } = req.body;
     const invitingUser = req.user;
-
-    if (!email) {
-      return sendErrorResponse(res, 400, 'Email is required');
-    }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return sendErrorResponse(res, 400, 'Invalid email format');
-    }
 
     // Check if user already exists
     try {

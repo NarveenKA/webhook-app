@@ -24,12 +24,36 @@ module.exports = {
     return db("logs").insert(event).returning('event_id');
   },
 
+  async count(filters = {}) {
+    const query = db("logs").count('* as total');
+
+    // Apply filters if provided
+    if (filters.account_id) {
+      query.where("logs.account_id", filters.account_id);
+    }
+    if (filters.destination_id) {
+      query.where("logs.destination_id", filters.destination_id);
+    }
+    if (filters.status) {
+      query.where("logs.status", filters.status);
+    }
+    if (filters.start_date) {
+      query.where("logs.received_timestamp", ">=", filters.start_date);
+    }
+    if (filters.end_date) {
+      query.where("logs.received_timestamp", "<=", filters.end_date);
+    }
+
+    const result = await query.first();
+    return parseInt(result.total);
+  },
+
   findAll(filters = {}, page = 1, limit = 10) {
     const query = db("logs")
       .select(
         "logs.*",
-        "accounts.name as account_name",
-        "destinations.name as destination_name"
+        "accounts.account_name as account_name",
+        "destinations.url as destination_name"
       )
       .leftJoin("accounts", "logs.account_id", "accounts.account_id")
       .leftJoin("destinations", "logs.destination_id", "destinations.destination_id")
@@ -61,8 +85,8 @@ module.exports = {
     return db("logs")
       .select(
         "logs.*",
-        "accounts.name as account_name",
-        "destinations.name as destination_name"
+        "accounts.account_name as account_name",
+        "destinations.url as destination_name"
       )
       .leftJoin("accounts", "logs.account_id", "accounts.account_id")
       .leftJoin("destinations", "logs.destination_id", "destinations.destination_id")
@@ -75,7 +99,7 @@ module.exports = {
       .where("logs.account_id", account_id)
       .select(
         "logs.*",
-        "destinations.name as destination_name"
+        "destinations.url as destination_name"
       )
       .leftJoin("destinations", "logs.destination_id", "destinations.destination_id")
       .orderBy("received_timestamp", "desc");
@@ -98,7 +122,7 @@ module.exports = {
       .where("logs.destination_id", destination_id)
       .select(
         "logs.*",
-        "accounts.name as account_name"
+        "accounts.account_name as account_name"
       )
       .leftJoin("accounts", "logs.account_id", "accounts.account_id")
       .orderBy("received_timestamp", "desc");

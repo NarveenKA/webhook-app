@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, hasRole } = require('../middleware/auth');
+const validateRequest = require('../middleware/validate');
+const { createMemberSchema, updateMemberSchema } = require('../validations/accountMember.validation');
 const accountMemberController = require('../controllers/accountMemberController');
 
 /**
@@ -93,7 +95,7 @@ router.get('/:member_id', verifyToken, accountMemberController.getMemberById);
  *       500:
  *         description: Server error
  */
-router.post('/', verifyToken, hasRole(['Admin']), accountMemberController.createMember);
+router.post('/', verifyToken, hasRole(['Admin']), validateRequest(createMemberSchema), accountMemberController.createMember);
 
 /**
  * @swagger
@@ -130,7 +132,7 @@ router.post('/', verifyToken, hasRole(['Admin']), accountMemberController.create
  *       500:
  *         description: Server error
  */
-router.put('/:member_id', verifyToken, hasRole(['Admin']), accountMemberController.updateMember);
+router.put('/:member_id', verifyToken, hasRole(['Admin']), validateRequest(updateMemberSchema), accountMemberController.updateMember);
 
 /**
  * @swagger
