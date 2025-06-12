@@ -1,20 +1,144 @@
 const express = require('express');
 const router = express.Router();
+const { verifyToken, hasRole } = require('../middleware/auth');
 const accountController = require('../controllers/accountController');
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Account:
+ *       type: object
+ *       required:
+ *         - account_name
+ *       properties:
+ *         account_id:
+ *           type: string
+ *           format: uuid
+ *           description: The auto-generated account ID
+ *         account_name:
+ *           type: string
+ *           description: The name of the account
+ *         website:
+ *           type: string
+ *           format: uri
+ *           description: The website URL (optional)
+ *         created_at:
+ *           type: string
+ *           format: date-time
+ *         updated_at:
+ *           type: string
+ *           format: date-time
+ *         created_by:
+ *           type: string
+ *         updated_by:
+ *           type: string
+ */
 
 /**
  * @swagger
  * tags:
  *   name: Accounts
- *   description: Account management API
+ *   description: Account management endpoints
  */
 
 /**
  * @swagger
  * /accounts:
- *   post:
- *     summary: Create a new account
+ *   get:
+ *     summary: Get all accounts (Admin and Normal User)
  *     tags: [Accounts]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Number of items per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term for account name
+ *     responses:
+ *       200:
+ *         description: List of accounts
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 accounts:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Account'
+ *                 pagination:
+ *                   type: object
+ *                   properties:
+ *                     page:
+ *                       type: integer
+ *                     limit:
+ *                       type: integer
+ *                     total:
+ *                       type: integer
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Server error
+ */
+router.get('/', verifyToken, accountController.getAll);
+
+/**
+ * @swagger
+ * /accounts/{account_id}:
+ *   get:
+ *     summary: Get account by ID (Admin and Normal User)
+ *     tags: [Accounts]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: account_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Account ID
+ *     responses:
+ *       200:
+ *         description: Account details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Account'
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Account not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/:account_id', verifyToken, accountController.getById);
+
+/**
+ * @swagger
+ * /accounts:
+ *   post:
+ *     summary: Create account (Admin only)
+ *     tags: [Accounts]
+ *     security:
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -22,102 +146,50 @@ const accountController = require('../controllers/accountController');
  *           schema:
  *             type: object
  *             required:
- *               - email
  *               - account_name
  *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *                 example: user@example.com
  *               account_name:
  *                 type: string
- *                 example: John Doe
+ *                 minLength: 2
+ *                 description: Name of the account
  *               website:
  *                 type: string
  *                 format: uri
- *                 example: https://example.com
+ *                 description: Website URL (must start with http:// or https://)
  *     responses:
  *       201:
- *         description: Account created successfully
+ *         description: Account created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Account'
  *       400:
- *         description: Validation failed
- *       409:
- *         description: Account with this email already exists
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
  *       500:
- *         description: Internal server error
+ *         description: Server error
  */
-router.post('/', accountController.create);
+router.post('/', verifyToken, hasRole(['Admin']), accountController.create);
 
 /**
  * @swagger
- * /accounts:
- *   get:
- *     summary: Get all accounts
- *     tags: [Accounts]
- *     parameters:
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *         description: Page number for pagination
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *         description: Number of accounts per page
- *       - in: query
- *         name: search
- *         schema:
- *           type: string
- *         description: Search term for filtering accounts
- *     responses:
- *       200:
- *         description: List of accounts
- *       500:
- *         description: Internal server error
- */
-router.get('/', accountController.getAll);
-
-/**
- * @swagger
- * /accounts/{id}:
- *   get:
- *     summary: Get account by ID
- *     tags: [Accounts]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: Account ID (UUID)
- *     responses:
- *       200:
- *         description: Account details
- *       400:
- *         description: Invalid account ID format
- *       404:
- *         description: Account not found
- *       500:
- *         description: Internal server error
- */
-router.get('/:id', accountController.getById);
-
-/**
- * @swagger
- * /accounts/{id}:
+ * /accounts/{account_id}:
  *   put:
- *     summary: Update an account
+ *     summary: Update account (Admin and Normal User)
  *     tags: [Accounts]
+ *     security:
+ *       - BearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: account_id
  *         required: true
  *         schema:
  *           type: string
  *           format: uuid
- *         description: Account ID (UUID)
+ *         description: Account ID
  *     requestBody:
  *       required: true
  *       content:
@@ -127,47 +199,58 @@ router.get('/:id', accountController.getById);
  *             properties:
  *               account_name:
  *                 type: string
- *                 example: Updated Name
+ *                 minLength: 2
+ *                 description: Name of the account
  *               website:
  *                 type: string
  *                 format: uri
- *                 example: https://newsite.com
+ *                 description: Website URL (must start with http:// or https://)
  *     responses:
  *       200:
- *         description: Account updated successfully
+ *         description: Account updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Account'
  *       400:
- *         description: Validation failed or invalid ID
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
  *       404:
  *         description: Account not found
  *       500:
- *         description: Internal server error
+ *         description: Server error
  */
-router.put('/:id', accountController.update);
+router.put('/:account_id', verifyToken, accountController.update);
 
 /**
  * @swagger
- * /accounts/{id}:
+ * /accounts/{account_id}:
  *   delete:
- *     summary: Delete an account
+ *     summary: Delete account (Admin only)
  *     tags: [Accounts]
+ *     security:
+ *       - BearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: account_id
  *         required: true
  *         schema:
  *           type: string
  *           format: uuid
- *         description: Account ID (UUID)
+ *         description: Account ID
  *     responses:
  *       200:
- *         description: Account and associated destinations deleted
- *       400:
- *         description: Invalid account ID format
+ *         description: Account deleted
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
  *       404:
  *         description: Account not found
  *       500:
- *         description: Internal server error
+ *         description: Server error
  */
-router.delete('/:id', accountController.delete);
+router.delete('/:account_id', verifyToken, hasRole(['Admin']), accountController.delete);
 
 module.exports = router;

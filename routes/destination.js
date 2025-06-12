@@ -1,20 +1,140 @@
 const express = require('express');
 const router = express.Router();
+const { verifyToken, hasRole } = require('../middleware/auth');
 const destinationController = require('../controllers/destinationController');
+
+/**
+ * @swagger
+ * components:
+ *   schemas:
+ *     Destination:
+ *       type: object
+ *       required:
+ *         - account_id
+ *         - url
+ *         - http_method
+ *         - headers
+ *       properties:
+ *         destination_id:
+ *           type: string
+ *           format: uuid
+ *           description: The auto-generated destination ID
+ *         account_id:
+ *           type: string
+ *           format: uuid
+ *           description: The ID of the account this destination belongs to
+ *         url:
+ *           type: string
+ *           format: uri
+ *           description: The webhook destination URL (must start with http:// or https://)
+ *         http_method:
+ *           type: string
+ *           enum: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
+ *           description: The HTTP method to use for the webhook
+ *         headers:
+ *           type: object
+ *           description: HTTP headers to include in the webhook request
+ *           additionalProperties:
+ *             type: string
+ *         created_at:
+ *           type: string
+ *           format: date-time
+ *         updated_at:
+ *           type: string
+ *           format: date-time
+ *         created_by:
+ *           type: string
+ *         updated_by:
+ *           type: string
+ */
 
 /**
  * @swagger
  * tags:
  *   name: Destinations
- *   description: API endpoints for managing destinations. 
+ *   description: Webhook destination management endpoints
  */
 
 /**
  * @swagger
  * /destinations:
- *   post:
- *     summary: Create a new destination
+ *   get:
+ *     summary: Get all destinations (Admin and Normal User)
  *     tags: [Destinations]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: account_id
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter destinations by account ID
+ *     responses:
+ *       200:
+ *         description: List of destinations
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 destinations:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/Destination'
+ *       400:
+ *         description: Invalid account ID format
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Account not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/', verifyToken, destinationController.getAll);
+
+/**
+ * @swagger
+ * /destinations/{destination_id}:
+ *   get:
+ *     summary: Get destination by ID (Admin and Normal User)
+ *     tags: [Destinations]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: destination_id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Destination ID
+ *     responses:
+ *       200:
+ *         description: Destination details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Destination'
+ *       400:
+ *         description: Invalid destination ID format
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Destination not found
+ *       500:
+ *         description: Server error
+ */
+router.get('/:destination_id', verifyToken, destinationController.getById);
+
+/**
+ * @swagger
+ * /destinations:
+ *   post:
+ *     summary: Create destination (Admin only)
+ *     tags: [Destinations]
+ *     security:
+ *       - BearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -30,107 +150,57 @@ const destinationController = require('../controllers/destinationController');
  *               account_id:
  *                 type: string
  *                 format: uuid
- *                 description: UUID of the associated account
+ *                 description: The ID of the account this destination belongs to
  *               url:
  *                 type: string
- *                 example: "https://newsite.com"
- *                 description: Destination URL (must be valid HTTP/HTTPS)
+ *                 format: uri
+ *                 description: The webhook destination URL (must start with http:// or https://)
  *               http_method:
  *                 type: string
  *                 enum: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
- *                 description: HTTP method for the destination
+ *                 description: The HTTP method to use for the webhook
  *               headers:
  *                 type: object
+ *                 description: HTTP headers to include in the webhook request
  *                 additionalProperties:
  *                   type: string
- *                 example:
- *                   APP_ID: "1234APPID1234"
- *                   APP_SECRET: "enwdj3bshwer43bjhjs9ereuinkjcnsiurew8s"
- *                   ACTION: "user.update"
- *                   Content-Type: "application/json"
- *                   Accept: "*"
- *                 description: Custom headers as key-value pairs (mandatory)
  *     responses:
  *       201:
- *         description: Destination created successfully
+ *         description: Destination created
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Destination'
  *       400:
- *         description: Validation failed
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
  *       404:
  *         description: Account not found
  *       409:
- *         description: Destination already exists
+ *         description: Duplicate destination
+ *       500:
+ *         description: Server error
  */
-router.post('/', destinationController.create);
+router.post('/', verifyToken, hasRole(['Admin']), destinationController.create);
 
 /**
  * @swagger
- * /destinations/account/{account_id}:
- *   get:
- *     summary: Get destinations by account ID
+ * /destinations/{destination_id}:
+ *   put:
+ *     summary: Update destination (Admin and Normal User)
  *     tags: [Destinations]
+ *     security:
+ *       - BearerAuth: []
  *     parameters:
  *       - in: path
- *         name: account_id
+ *         name: destination_id
  *         required: true
  *         schema:
  *           type: string
  *           format: uuid
- *         description: UUID of the account
- *       - in: query
- *         name: page
- *         schema:
- *           type: integer
- *         description: "Page number for pagination (default: 1)"
- *       - in: query
- *         name: limit
- *         schema:
- *           type: integer
- *         description: "Number of records per page (default: 10)"
- *     responses:
- *       200:
- *         description: List of destinations
- *       400:
- *         description: Invalid account ID format
- *       404:
- *         description: Account not found
- */
-router.get('/account/:account_id', destinationController.getByAccountId);
-
-/**
- * @swagger
- * /destinations/{id}:
- *   get:
- *     summary: Get a destination by ID
- *     tags: [Destinations]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Destination ID
- *     responses:
- *       200:
- *         description: Destination details
- *       400:
- *         description: Invalid destination ID format
- *       404:
- *         description: Destination not found
- */
-router.get('/:id', destinationController.getById);
-
-/**
- * @swagger
- * /destinations/{id}:
- *   put:
- *     summary: Update an existing destination
- *     tags: [Destinations]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
  *         description: Destination ID
  *     requestBody:
  *       required: true
@@ -141,56 +211,67 @@ router.get('/:id', destinationController.getById);
  *             properties:
  *               url:
  *                 type: string
- *                 description: Updated destination URL
- *                 example: "https://newsite.com"
+ *                 format: uri
+ *                 description: The webhook destination URL (must start with http:// or https://)
  *               http_method:
  *                 type: string
  *                 enum: [GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS]
- *                 description: Updated HTTP method
+ *                 description: The HTTP method to use for the webhook
  *               headers:
  *                 type: object
+ *                 description: HTTP headers to include in the webhook request
  *                 additionalProperties:
  *                   type: string
- *                 example:
- *                   APP_ID: "1234APPID1234"
- *                   APP_SECRET: "enwdj3bshwer43bjhjs9ereuinkjcnsiurew8s"
- *                   ACTION: "user.update"
- *                   Content-Type: "application/json"
- *                   Accept: "*"
- *                 description: Updated headers as key-value pairs
  *     responses:
  *       200:
- *         description: Destination updated successfully
+ *         description: Destination updated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Destination'
  *       400:
- *         description: Validation failed or no valid fields provided
+ *         description: Validation error
+ *       401:
+ *         description: Unauthorized
  *       404:
  *         description: Destination not found
  *       409:
- *         description: Destination with same URL and HTTP method already exists
+ *         description: Duplicate destination
+ *       500:
+ *         description: Server error
  */
-router.put('/:id', destinationController.update);
+router.put('/:destination_id', verifyToken, destinationController.update);
 
 /**
  * @swagger
- * /destinations/{id}:
+ * /destinations/{destination_id}:
  *   delete:
- *     summary: Delete a destination by ID
+ *     summary: Delete destination (Admin only)
  *     tags: [Destinations]
+ *     security:
+ *       - BearerAuth: []
  *     parameters:
  *       - in: path
- *         name: id
+ *         name: destination_id
  *         required: true
  *         schema:
  *           type: string
+ *           format: uuid
  *         description: Destination ID
  *     responses:
  *       200:
- *         description: Destination deleted successfully
+ *         description: Destination deleted
  *       400:
  *         description: Invalid destination ID format
+ *       401:
+ *         description: Unauthorized
+ *       403:
+ *         description: Admin access required
  *       404:
  *         description: Destination not found
+ *       500:
+ *         description: Server error
  */
-router.delete('/:id', destinationController.delete);
+router.delete('/:destination_id', verifyToken, hasRole(['Admin']), destinationController.delete);
 
 module.exports = router;

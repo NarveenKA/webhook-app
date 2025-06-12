@@ -1,28 +1,39 @@
-const axios = require('axios');
 const Account = require('../models/account');
 const Destination = require('../models/destination');
+const webhookQueue = require('../utils/queue');
 const { sendErrorResponse, sendSuccessResponse } = require('../utils/response');
 
 // Incoming Data Handler
 const incomingData = async (req, res) => {
   try {
-    const secretToken = req.header('CL-X-TOKEN');
-    const requestData = req.body;
-
-    // Validate secret token
-    if (!secretToken) {
-      return sendErrorResponse(res, 401, 'Un Authenticate');
+    // Validate request method
+    if (req.method !== 'POST') {
+      return sendErrorResponse(res, 405, 'Method not allowed. Only POST requests are accepted.');
     }
 
-    // Ensure incoming data is JSON (if Content-Type is not application/json or data is not an object)
-    if (req.method !== 'POST' || !requestData || typeof requestData !== 'object') {
-      return sendErrorResponse(res, 400, 'Invalid Data');
+    // Validate headers
+    const secretToken = req.header('CL-X-TOKEN');
+    const eventId = req.header('CL-X-EVENT-ID');
+
+    if (!secretToken) {
+      return sendErrorResponse(res, 401, 'Unauthorized - Missing secret token');
+    }
+
+    if (!eventId) {
+      return sendErrorResponse(res, 400, 'Bad Request - Missing event ID');
+    }
+
+    const requestData = req.body;
+
+    // Validate content type and data
+    if (!requestData || typeof requestData !== 'object') {
+      return sendErrorResponse(res, 400, 'Invalid request body. Expected JSON data.');
     }
 
     // Find account by secret token
     const account = await Account.findBySecretToken(secretToken);
     if (!account) {
-      return sendErrorResponse(res, 401, 'Un Authenticate');
+      return sendErrorResponse(res, 401, 'Unauthorized - Invalid secret token');
     }
 
     // Fetch destinations for this account
@@ -31,56 +42,19 @@ const incomingData = async (req, res) => {
       return sendErrorResponse(res, 404, 'No destinations found for this account');
     }
 
-    // Dispatch data to each destination
-    const dispatchResults = [];
-
-    for (const dest of destinations) {
-      try {
-        const destHeaders = dest.headers || {};
-        const destMethod = dest.http_method.toUpperCase();
-        const destUrl = dest.url;
-
-        let response;
-        if (destMethod === 'GET') {
-          response = await axios.get(destUrl, {
-            params: requestData,
-            headers: destHeaders,
-          });
-        } else if (['POST', 'PUT'].includes(destMethod)) {
-          response = await axios({
-            method: destMethod.toLowerCase(),
-            url: destUrl,
-            data: requestData,
-            headers: destHeaders,
-          });
-        } else {
-          // Skip unsupported methods for now
-          dispatchResults.push({
-            destination: destUrl,
-            status: 'skipped',
-            reason: `Unsupported HTTP method: ${destMethod}`,
-          });
-          continue;
-        }
-
-        dispatchResults.push({
-          destination: destUrl,
-          status: 'success',
-          statusCode: response.status,
-        });
-      } catch (err) {
-        dispatchResults.push({
-          destination: dest.url,
-          status: 'failed',
-          error: err.message,
-        });
-      }
-    }
-
-    return sendSuccessResponse(res, 200, {
-      message: 'Data dispatched to destinations',
-      results: dispatchResults,
+    // Add to processing queue
+    await webhookQueue.addToQueue({
+      eventId,
+      accountId: account.account_id,
+      payload: requestData,
+      destinations
     });
+
+    return sendSuccessResponse(res, 202, {
+      message: 'Data accepted for processing',
+      event_id: eventId
+    });
+
   } catch (error) {
     console.error('Error in incomingData:', error);
     return sendErrorResponse(res, 500, 'Internal server error while processing incoming data');

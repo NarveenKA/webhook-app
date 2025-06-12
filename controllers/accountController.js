@@ -1,30 +1,26 @@
-const { v4: uuidv4 } = require('uuid');
-const crypto = require('crypto');
-const Account = require('../models/account');
-const Destination = require('../models/destination');
-const { sendErrorResponse, sendSuccessResponse } = require('../utils/response');
+const { v4: uuidv4 } = require("uuid");
+const crypto = require("crypto");
+const Account = require("../models/account");
+const Destination = require("../models/destination");
+const { sendErrorResponse, sendSuccessResponse } = require("../utils/response");
 
 // Input validation helper
 const validateCreateInput = (req) => {
-  const { email, account_name, website } = req.body;
+  const { account_name, website } = req.body;
   const errors = [];
-  
-  if (!email) {
-    errors.push('Email is required');
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    errors.push('Valid email format is required');
-  }
-  
+
   if (!account_name) {
-    errors.push('Account name is required');
+    errors.push("Account name is required");
   } else if (account_name.trim().length < 2) {
-    errors.push('Account name must be at least 2 characters long');
+    errors.push("Account name must be at least 2 characters long");
   }
-  
+
   if (website && !/^https?:\/\/.+/.test(website)) {
-    errors.push('Website must be a valid URL starting with http:// or https://');
+    errors.push(
+      "Website must be a valid URL starting with http:// or https://"
+    );
   }
-  
+
   return errors;
 };
 
@@ -35,37 +31,43 @@ module.exports = {
       // Input validation
       const validationErrors = validateCreateInput(req);
       if (validationErrors.length > 0) {
-        return sendErrorResponse(res, 400, 'Validation failed', validationErrors);
+        return sendErrorResponse(
+          res,
+          400,
+          "Validation failed",
+          validationErrors
+        );
       }
-      
-      const { email, account_name, website } = req.body;
-      
-      // Check for existing account
-      const existing = await Account.findByEmail(email.toLowerCase().trim());
-      if (existing) {
-        return sendErrorResponse(res, 409, 'Account with this email already exists');
-      }
-      
+
+      const { account_name, website } = req.body;
+
       // Create new account
       const account = {
         account_id: uuidv4(),
-        email: email.toLowerCase().trim(),
         account_name: account_name.trim(),
         website: website ? website.trim() : null,
-        app_secret_token: crypto.randomBytes(32).toString('hex'),
+        app_secret_token: crypto.randomBytes(32).toString("hex"),
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        created_by: req.user?.user_id || "system",
+        updated_by: req.user?.user_id || "system",
       };
-      
-      const createdAccount = await Account.create(account);
-      
-      return sendSuccessResponse(res, 201, account, 'Account created successfully');
-      
+
+      await Account.create(account);
+
+      return sendSuccessResponse(
+        res,
+        201,
+        account,
+        "Account created successfully"
+      );
     } catch (error) {
-      if (error.code === 'SQLITE_CONSTRAINT' || error.code === 11000) {
-        return sendErrorResponse(res, 409, 'Account with this email already exists');
-      }
-      return sendErrorResponse(res, 500, 'Internal server error while creating account');
+      console.error('Error in create account:', error);
+      return sendErrorResponse(
+        res,
+        500,
+        "Internal server error while creating account"
+      );
     }
   },
 
@@ -74,151 +76,185 @@ module.exports = {
     try {
       const { page = 1, limit = 10, search } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
-      
+
       const accounts = await Account.findAll({
         limit: parseInt(limit),
         offset,
-        search
+        search,
       });
-      
+
       // Remove sensitive data from all accounts
-      const safeAccounts = accounts.map(account => {
+      const safeAccounts = accounts.map((account) => {
         const { app_secret_token, ...safeAccount } = account;
         return safeAccount;
       });
-      
+
       return sendSuccessResponse(res, 200, {
         accounts: safeAccounts,
         pagination: {
           page: parseInt(page),
           limit: parseInt(limit),
-          total: safeAccounts.length
-        }
+          total: safeAccounts.length,
+        },
       });
-      
     } catch (error) {
-      return sendErrorResponse(res, 500, 'Internal server error while fetching accounts');
+      console.error('Error in getAll accounts:', error);
+      return sendErrorResponse(
+        res,
+        500,
+        "Internal server error while fetching accounts"
+      );
     }
   },
 
-  // GET /accounts/:id - Get account by ID
+  // GET /accounts/:account_id - Get account by ID
   async getById(req, res) {
     try {
-      const { id } = req.params;
-      
+      const { account_id } = req.params;
+
       // Validate UUID format
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(id)) {
-        return sendErrorResponse(res, 400, 'Invalid account ID format');
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(account_id)) {
+        return sendErrorResponse(res, 400, "Invalid account ID format");
       }
-      
-      const account = await Account.findById(id);
+
+      const account = await Account.findById(account_id);
       if (!account) {
-        return sendErrorResponse(res, 404, 'Account not found');
+        return sendErrorResponse(res, 404, "Account not found");
       }
-      
+
       // Remove sensitive data
       const { app_secret_token, ...safeAccount } = account;
-      
+
       return sendSuccessResponse(res, 200, safeAccount);
-      
     } catch (error) {
-      return sendErrorResponse(res, 500, 'Internal server error while fetching account');
+      console.error('Error in getById account:', error);
+      return sendErrorResponse(
+        res,
+        500,
+        "Internal server error while fetching account"
+      );
     }
   },
 
-  // PUT /accounts/:id - Update account
+  // PUT /accounts/:account_id - Update account
   async update(req, res) {
     try {
-      const { id } = req.params;
-      
+      const { account_id } = req.params;
+
       // Validate UUID format
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(id)) {
-        return sendErrorResponse(res, 400, 'Invalid account ID format');
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(account_id)) {
+        return sendErrorResponse(res, 400, "Invalid account ID format");
       }
-      
+
       // Check if account exists
-      const existingAccount = await Account.findById(id);
+      const existingAccount = await Account.findById(account_id);
       if (!existingAccount) {
-        return sendErrorResponse(res, 404, 'Account not found');
+        return sendErrorResponse(res, 404, "Account not found");
       }
-      
+
       // Validate update data
-      const allowedFields = ['account_name', 'website'];
+      const allowedFields = ["account_name", "website"];
       const updateData = {};
       const errors = [];
-      
-      Object.keys(req.body).forEach(key => {
+
+      Object.keys(req.body).forEach((key) => {
         if (allowedFields.includes(key)) {
           updateData[key] = req.body[key];
         }
       });
-      
-      if (updateData.account_name && updateData.account_name.trim().length < 2) {
-        errors.push('Account name must be at least 2 characters long');
+
+      if (
+        updateData.account_name &&
+        updateData.account_name.trim().length < 2
+      ) {
+        errors.push("Account name must be at least 2 characters long");
       }
-      
+
       if (updateData.website && !/^https?:\/\/.+/.test(updateData.website)) {
-        errors.push('Website must be a valid URL starting with http:// or https://');
+        errors.push(
+          "Website must be a valid URL starting with http:// or https://"
+        );
       }
-      
+
       if (errors.length > 0) {
-        return sendErrorResponse(res, 400, 'Validation failed', errors);
+        return sendErrorResponse(res, 400, "Validation failed", errors);
       }
-      
+
       if (Object.keys(updateData).length === 0) {
-        return sendErrorResponse(res, 400, 'No valid fields provided for update');
+        return sendErrorResponse(
+          res,
+          400,
+          "No valid fields provided for update"
+        );
       }
-      
-      // Add updated timestamp
+
+      // Add updated timestamp and user
       updateData.updated_at = new Date().toISOString();
-      
-      const updated = await Account.update(id, updateData);
-      if (!updated) {
-        return sendErrorResponse(res, 404, 'Account not found');
-      }
-      
+      updateData.updated_by = req.user?.user_id || "system";
+
+      await Account.update(account_id, updateData);
+
       // Fetch updated account
-      await Account.findById(id);
-      
-      return sendSuccessResponse(res, 200, updateData, 'Account updated successfully');
-      
+      const updatedAccount = await Account.findById(account_id);
+      const { app_secret_token, ...safeAccount } = updatedAccount;
+
+      return sendSuccessResponse(
+        res,
+        200,
+        safeAccount,
+        "Account updated successfully"
+      );
     } catch (error) {
-      return sendErrorResponse(res, 500, 'Internal server error while updating account');
+      console.error('Error in update account:', error);
+      return sendErrorResponse(
+        res,
+        500,
+        "Internal server error while updating account"
+      );
     }
   },
 
-  // DELETE /accounts/:id - Delete account
+  // DELETE /accounts/:account_id - Delete account
   async delete(req, res) {
     try {
-      const { id } = req.params;
-      
+      const { account_id } = req.params;
+
       // Validate UUID format
-      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-      if (!uuidRegex.test(id)) {
-        return sendErrorResponse(res, 400, 'Invalid account ID format');
+      const uuidRegex =
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(account_id)) {
+        return sendErrorResponse(res, 400, "Invalid account ID format");
       }
-      
+
       // Check if account exists
-      const existingAccount = await Account.findById(id);
+      const existingAccount = await Account.findById(account_id);
       if (!existingAccount) {
-        return sendErrorResponse(res, 404, 'Account not found');
+        return sendErrorResponse(res, 404, "Account not found");
       }
-      
+
       // Delete associated destinations first
-      await Destination.deleteByAccountId(id);
-      
+      await Destination.deleteByAccountId(account_id);
+
       // Delete the account
-      const deleted = await Account.delete(id);
-      if (!deleted) {
-        return sendErrorResponse(res, 404, 'Account not found');
-      }
-      
-      return sendSuccessResponse(res, 200, null, 'Account and associated destinations deleted successfully');
-      
+      await Account.delete(account_id);
+
+      return sendSuccessResponse(
+        res,
+        200,
+        null,
+        "Account and associated destinations deleted successfully"
+      );
     } catch (error) {
-      return sendErrorResponse(res, 500, 'Internal server error while deleting account');
+      console.error('Error in delete account:', error);
+      return sendErrorResponse(
+        res,
+        500,
+        "Internal server error while deleting account"
+      );
     }
-  },
+  }
 };
